@@ -1,0 +1,46 @@
+[tasks.verify-toolchain]
+script_runner = "@duckscript"
+script = [
+'''
+channel = get_env CARGO_MAKE_RUST_CHANNEL
+assert_eq ${channel} nightly "Rust toolchain must be set to nightly"
+'''
+]
+
+[tasks.build-debug]
+dependencies = ["verify-toolchain"]
+command = "cargo"
+args = ["build", "--target=thumbv4t-none-eabi", "-Zbuild-std=core"]
+
+[tasks.build-release]
+dependencies = ["verify-toolchain"]
+command = "cargo"
+args = ["build", "--release", "--target=thumbv4t-none-eabi", "-Zbuild-std=core"]
+
+[tasks.make-rom]
+script_runner = "@duckscript"
+script = [
+'''
+release_target = get_env RELEASE_TARGET
+bin_path = set ./target/thumbv4t-none-eabi/${release_target}/ophelia
+binary_exists = is_path_exists ${bin_path}
+if ${binary_exists}
+  echo "Packing: ${bin_path} to ${bin_path}.gba"
+  exec arm-none-eabi-objcopy -O binary ${bin_path} ${bin_path}.gba
+  echo "Fixing headers: ${bin_path}.gba"
+  exec gbafix ${bin_path}.gba
+else
+  echo "Binary does not exist: ${bin_path}"
+end
+'''
+]
+
+[tasks.make-rom-release]
+dependencies = ["build-release"]
+env = { RELEASE_TARGET = "release" }
+run_task = "pack-roms"
+
+[tasks.make-rom-debug]
+dependencies = ["build-debug"]
+env = { RELEASE_TARGET = "debug" }
+run_task = "make-rom"
